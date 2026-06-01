@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pigmenta — Juego de memoria</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Urbanist:wght@400;600;700&display=swap');
+
+    :root {
+      --bg-main: #fde8ef;
+      --bg-card: #fffaf8;
+      --pink-soft: #f5c2d4;
+      --pink-mid: #e8a0bb;
+      --pink-accent: #d4749a;
+      --text-main: #6b3a4e;
+      --text-muted: #a07080;
+      --white: #ffffff;
+      --timer-critical: #e8748a;
+      --card-w: clamp(4.75rem, 6.8vw, 7.25rem);
+      --card-h: clamp(6.5rem, 9.5vw, 9.5rem);
+      --pair-count: 8;
+      --board-gap: clamp(0.85rem, 1.4vw, 1.35rem);
+      --radius-card: 16px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      min-width: 768px;
+      font-family: 'Urbanist', sans-serif;
+      font-size: 1.125rem;
+      color: var(--text-main);
+      background-color: var(--bg-main);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Capa 1: manchas de acuarela en rosa y crema */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-color: var(--bg-main);
+      background-image:
+        radial-gradient(ellipse 90% 70% at 0% 0%, rgba(245, 194, 212, 0.5) 0%, transparent 58%),
+        radial-gradient(ellipse 75% 55% at 100% 5%, rgba(232, 160, 187, 0.35) 0%, transparent 52%),
+        radial-gradient(ellipse 65% 60% at 95% 100%, rgba(245, 194, 212, 0.42) 0%, transparent 55%),
+        radial-gradient(ellipse 80% 65% at 0% 95%, rgba(232, 160, 187, 0.38) 0%, transparent 54%),
+        radial-gradient(ellipse 55% 45% at 50% 0%, rgba(255, 250, 248, 0.65) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 40% at 8% 55%, rgba(253, 232, 239, 0.9) 0%, transparent 48%),
+        radial-gradient(ellipse 45% 38% at 92% 48%, rgba(255, 250, 248, 0.55) 0%, transparent 46%);
+    }
+
+    /* Capa 2: chips de color del juego, difuminados */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.9;
+      filter: blur(68px);
+      background-image:
+        radial-gradient(circle at 8% 20%, rgba(192, 57, 43, 0.14) 0%, transparent 42%),
+        radial-gradient(circle at 92% 15%, rgba(146, 43, 33, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 78% 88%, rgba(202, 111, 30, 0.13) 0%, transparent 44%),
+        radial-gradient(circle at 18% 82%, rgba(212, 172, 13, 0.11) 0%, transparent 40%),
+        radial-gradient(circle at 6% 52%, rgba(91, 74, 111, 0.11) 0%, transparent 38%),
+        radial-gradient(circle at 50% 72%, rgba(30, 132, 73, 0.09) 0%, transparent 36%),
+        radial-gradient(circle at 94% 58%, rgba(26, 82, 118, 0.11) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(245, 194, 212, 0.08) 0%, transparent 35%);
+    }
+
+    h1, h2, .font-serif {
+      font-family: 'Instrument Serif', serif;
+      font-weight: 600;
+    }
+
+    #app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(2rem, 4vh, 3rem);
+    }
+
+    .screen.active {
+      opacity: 1;
+      pointer-events: all;
+      display: flex;
+    }
+
+    /* —— Welcome —— */
+    #screen-welcome {
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .welcome-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: clamp(1rem, 2.5vh, 1.75rem);
+      max-width: min(680px, 92vw);
+      margin: 0 auto;
+    }
+
+    #screen-welcome h1 {
+      font-size: clamp(3.5rem, 7vw, 5.75rem);
+      line-height: 1;
+      color: var(--text-main);
+      letter-spacing: 0.02em;
+    }
+
+    #screen-welcome .subtitle {
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(1.35rem, 2.8vw, 2rem);
+      font-weight: 400;
+      font-style: italic;
+      color: var(--text-muted);
+    }
+
+    #screen-welcome .instructions {
+      font-size: clamp(1.1rem, 1.5vw, 1.3rem);
+      line-height: 1.65;
+      color: var(--text-muted);
+      max-width: 520px;
+      margin: 0.5rem auto 1.25rem;
+    }
+
+    /* —— Level selection (after mode) —— */
+    #screen-level {
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .level-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: clamp(1rem, 2.5vh, 1.5rem);
+      max-width: min(520px, 92vw);
+      margin: 0 auto;
+      position: relative;
+      width: 100%;
+    }
+
+    .level-inner .btn-back-level {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    #screen-level h2 {
+      font-size: clamp(2rem, 4vw, 2.75rem);
+      line-height: 1.1;
+      margin-top: 0.5rem;
+    }
+
+    .level-mode-desc {
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+      font-style: italic;
+      color: var(--text-muted);
+      margin-top: -0.5rem;
+    }
+
+    .level-picker-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    .level-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .btn-level {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.75rem 0.5rem;
+      border: 2px solid rgba(107, 58, 78, 0.12);
+      border-radius: 16px;
+      background: var(--bg-card);
+      color: var(--text-main);
+      font-family: 'Urbanist', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn-level small {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .btn-level:hover {
+      border-color: var(--pink-mid);
+      transform: translateY(-2px);
+    }
+
+    .btn-level.active {
+      background: var(--pink-soft);
+      border-color: var(--pink-accent);
+      color: var(--text-main);
+    }
+
+    .mode-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 1.15rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .toggle-accessible {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+      width: fit-content;
+      max-width: min(420px, 90vw);
+      margin: 0 auto;
+      padding: 0.65rem 0.25rem;
+    }
+
+    .toggle-accessible input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-track {
+      position: relative;
+      flex-shrink: 0;
+      width: 52px;
+      height: 28px;
+      border-radius: 50px;
+      background: var(--pink-soft);
+      border: 2px solid rgba(107, 58, 78, 0.12);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--white);
+      box-shadow: 0 2px 6px rgba(107, 58, 78, 0.2);
+      transition: transform 0.2s ease;
+    }
+
+    .toggle-accessible input:checked + .toggle-track {
+      background: var(--pink-accent);
+      border-color: var(--pink-accent);
+    }
+
+    .toggle-accessible input:checked + .toggle-track::after {
+      transform: translateX(24px);
+    }
+
+    .toggle-accessible input:focus-visible + .toggle-track {
+      outline: 2px solid var(--pink-accent);
+      outline-offset: 2px;
+    }
+
+    .toggle-label-text {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.35;
+      text-align: left;
+    }
+
+    .toggle-label-text svg {
+      width: 20px;
+      height: 20px;
+      color: var(--pink-accent);
+      flex-shrink: 0;
+    }
+
+    .toggle-hint {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+
+    /* —— Buttons —— */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      border: none;
+      border-radius: 50px;
+      padding: 16px 36px;
+      font-family: 'Urbanist', sans-serif;
+      font-weight: 600;
+      font-size: 1.15rem;
+      background: var(--pink-mid);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn:hover {
+      background: var(--pink-accent);
+      color: var(--white);
+      transform: scale(1.03);
+    }
+
+    .btn svg {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    /* —— Game —— */
+    #screen-game {
+      justify-content: center;
+      padding: clamp(1.25rem, 3vh, 2.5rem) 1.5rem;
+      gap: clamp(0.5rem, 1.5vh, 0.75rem);
+    }
+
+    .game-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: inherit;
+      width: 100%;
+      max-width: min(680px, 96vw);
+    }
+
+    .game-panel.layout-level-3 {
+      max-width: min(920px, 98vw);
+    }
+
+    .game-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      width: 100%;
+      padding: 0 0.5rem;
+    }
+
+    .game-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      justify-self: start;
+    }
+
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: var(--pink-mid);
+      color: var(--text-main);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn-back:hover {
+      background: var(--pink-accent);
+      color: var(--white);
+      transform: scale(1.05);
+    }
+
+    .btn-back svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .game-header .logo-small {
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(1.5rem, 2vw, 1.85rem);
+      font-weight: 600;
+    }
+
+    .timer-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-weight: 700;
+      font-size: clamp(1.35rem, 2vw, 1.6rem);
+      justify-self: center;
+    }
+
+    .timer-wrap svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .timer-wrap.critical {
+      color: var(--timer-critical);
+      animation: pulse-timer 1s ease-in-out infinite;
+    }
+
+    .pairs-count {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      font-size: clamp(1rem, 1.4vw, 1.15rem);
+      justify-self: end;
+    }
+
+    .pairs-count svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .mode-label {
+      font-size: clamp(0.85rem, 1.1vw, 0.95rem);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(var(--board-cols, 4), var(--card-w));
+      grid-template-rows: repeat(var(--board-rows, 4), var(--card-h));
+      gap: var(--board-gap);
+      margin-top: clamp(0.5rem, 1.5vh, 1rem);
+      perspective: 1200px;
+    }
+
+    #board.layout-level-1 {
+      --board-cols: 4;
+      --board-rows: 3;
+    }
+
+    #board.layout-level-2 {
+      --board-cols: 4;
+      --board-rows: 4;
+    }
+
+    #board.layout-level-3 {
+      --board-cols: 6;
+      --board-rows: 3;
+      --card-w: clamp(4rem, 5.2vw, 6rem);
+      --card-h: clamp(5.5rem, 7.5vw, 8rem);
+    }
+
+    .preview-hint {
+      font-size: clamp(0.85rem, 1.1vw, 0.95rem);
+      font-weight: 600;
+      color: var(--pink-accent);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      min-height: 1.25em;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .preview-hint.visible {
+      opacity: 1;
+    }
+
+    #burst-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      overflow: visible;
+    }
+
+    .burst-hue {
+      position: fixed;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      will-change: transform, opacity;
+    }
+
+    .burst-hue-core {
+      filter: blur(16px);
+      animation: hue-burst-core 0.8s cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
+    }
+
+    .burst-hue-wash {
+      filter: blur(36px);
+      animation: hue-burst-wash 1.05s cubic-bezier(0.15, 0.65, 0.25, 1) forwards;
+      mix-blend-mode: multiply;
+    }
+
+    @keyframes hue-burst-core {
+      0% {
+        transform: translate(-50%, -50%) scale(0.4);
+        opacity: 0.95;
+      }
+      55% {
+        opacity: 0.75;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(1.9);
+        opacity: 0;
+      }
+    }
+
+    @keyframes hue-burst-wash {
+      0% {
+        transform: translate(-50%, -50%) scale(0.3);
+        opacity: 0.65;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(2.6);
+        opacity: 0;
+      }
+    }
+
+    /* —— Cards —— */
+    .card {
+      width: var(--card-w);
+      height: var(--card-h);
+      position: relative;
+      cursor: pointer;
+      border-radius: var(--radius-card);
+      box-shadow: 0 6px 18px rgba(107, 58, 78, 0.14);
+      opacity: 0;
+      animation: card-appear 0.3s ease forwards;
+      background: transparent;
+    }
+
+    .card:not(.is-flipped):not(.matched):hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 24px rgba(107, 58, 78, 0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card.is-flipped:not(.matched):hover,
+    .card.matched:hover {
+      transform: none;
+    }
+
+    .card.matched {
+      opacity: 0.75;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .card.matched:hover {
+      box-shadow: 0 4px 14px rgba(107, 58, 78, 0.12);
+    }
+
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      transition: transform 0.5s ease-in-out;
+      border-radius: var(--radius-card);
+    }
+
+    .card-inner.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-inner.pulse-match {
+      animation: pulse-match 0.5s ease;
+    }
+
+    .card-inner.shake {
+      animation: shake 0.4s ease;
+    }
+
+    .card-back,
+    .card-front {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius-card);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-back {
+      background: linear-gradient(145deg, var(--pink-soft) 0%, #f8d4e0 50%, var(--pink-mid) 100%);
+      overflow: hidden;
+      transform: rotateY(0deg);
+    }
+
+    .card-back::before {
+      content: 'P';
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(3.25rem, 6vw, 5.5rem);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.35);
+      line-height: 1;
+      user-select: none;
+    }
+
+    .card-front {
+      transform: rotateY(180deg);
+      justify-content: flex-end;
+      padding-bottom: 16px;
+      /* color set inline per card */
+    }
+
+    .card-hex {
+      font-family: 'Urbanist', sans-serif;
+      font-size: clamp(0.7rem, 1vw, 0.85rem);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.75);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    /* —— End screens —— */
+    #screen-win,
+    #screen-lose {
+      text-align: center;
+      gap: 1rem;
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .end-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(1rem, 2vh, 1.35rem);
+      max-width: min(580px, 92vw);
+      margin: 0 auto;
+    }
+
+    #screen-win .end-icon,
+    #screen-lose .end-icon {
+      color: var(--pink-accent);
+      margin-bottom: 0.5rem;
+    }
+
+    #screen-win .end-icon svg,
+    #screen-lose .end-icon svg {
+      width: 88px;
+      height: 88px;
+    }
+
+    #screen-win h2,
+    #screen-lose h2 {
+      font-size: clamp(2.5rem, 5vw, 3.5rem);
+      line-height: 1.1;
+    }
+
+    .end-message {
+      font-size: clamp(1.1rem, 1.5vw, 1.25rem);
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .end-detail {
+      font-weight: 600;
+      color: var(--text-main);
+      font-size: clamp(1.05rem, 1.4vw, 1.2rem);
+    }
+
+    #screen-lose .end-icon {
+      color: var(--text-muted);
+    }
+
+    /* —— Animations —— */
+    @keyframes shake {
+      0%, 100% { transform: rotateY(180deg) translateX(0); }
+      25% { transform: rotateY(180deg) translateX(-6px); }
+      75% { transform: rotateY(180deg) translateX(6px); }
+    }
+
+    @keyframes pulse-match {
+      0%, 100% { transform: rotateY(180deg) scale(1); }
+      50% { transform: rotateY(180deg) scale(1.07); }
+    }
+
+    @keyframes pulse-timer {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    @keyframes card-appear {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 1. Welcome -->
+    <section id="screen-welcome" class="screen active">
+      <div class="welcome-inner">
+        <h1>Pigmenta</h1>
+        <p class="subtitle">Un juego de memoria a todo color</p>
+        <p class="instructions">
+          Elige un modo, memoriza los colores en la vista previa y encuentra todos los pares antes de que se acabe el tiempo (1 minuto y medio).
+        </p>
+        <label class="toggle-accessible" for="toggle-colorblind">
+          <input type="checkbox" id="toggle-colorblind" />
+          <span class="toggle-track" aria-hidden="true"></span>
+          <span class="toggle-label-text">
+            <i data-lucide="eye"></i>
+            <span>
+              Colores adaptados para daltonismo
+              <span class="toggle-hint">Paleta con mayor contraste entre tonos</span>
+            </span>
+          </span>
+        </label>
+        <div class="mode-buttons">
+          <button type="button" class="btn" data-mode="easy">
+            <i data-lucide="star"></i>
+            Fácil — Con códigos hex
+          </button>
+          <button type="button" class="btn" data-mode="hard">
+            <i data-lucide="shield"></i>
+            Difícil — Solo colores
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Level (after mode) -->
+    <section id="screen-level" class="screen">
+      <div class="level-inner">
+        <button type="button" class="btn-back btn-back-level" id="btn-back-mode" aria-label="Volver a modos">
+          <i data-lucide="arrow-left"></i>
+        </button>
+        <h2 id="level-mode-title">Modo Fácil</h2>
+        <p class="level-mode-desc" id="level-mode-desc">Con códigos hex</p>
+        <span class="level-picker-title">Elige el nivel</span>
+        <div class="level-buttons">
+          <button type="button" class="btn-level" data-level="1">
+            1
+            <small>12 tarjetas</small>
+          </button>
+          <button type="button" class="btn-level" data-level="2">
+            2
+            <small>16 tarjetas</small>
+          </button>
+          <button type="button" class="btn-level" data-level="3">
+            3
+            <small>18 tarjetas</small>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Game -->
+    <section id="screen-game" class="screen">
+      <div class="game-panel" id="game-panel">
+        <header class="game-header">
+          <div class="game-header-left">
+            <button type="button" class="btn-back" id="btn-back-welcome" aria-label="Volver al inicio">
+              <i data-lucide="arrow-left"></i>
+            </button>
+            <span class="logo-small">Pigmenta</span>
+          </div>
+          <div class="timer-wrap" id="timer-wrap">
+            <i data-lucide="hourglass"></i>
+            <span id="timer-display">01:30</span>
+          </div>
+          <div class="pairs-count">
+            <i data-lucide="check"></i>
+            <span id="pairs-display">0 / 6 pares</span>
+          </div>
+        </header>
+        <p class="preview-hint" id="preview-hint" aria-live="polite"></p>
+        <p class="mode-label" id="mode-label">Modo Fácil</p>
+        <div id="board" aria-label="Tablero de tarjetas"></div>
+      </div>
+    </section>
+
+    <!-- 3. Win -->
+    <section id="screen-win" class="screen">
+      <div class="end-inner">
+        <div class="end-icon">
+          <i data-lucide="trophy"></i>
+        </div>
+        <h2>¡Lo lograste!</h2>
+        <p class="end-message" id="win-message">
+          Encontraste todos los pares a tiempo. Tu memoria cromática es impresionante.
+        </p>
+        <p class="end-detail" id="win-time-detail">Tiempo restante: 0:00</p>
+        <button type="button" class="btn" id="btn-play-again-win">
+          <i data-lucide="rotate-ccw"></i>
+          Jugar de nuevo
+        </button>
+      </div>
+    </section>
+
+    <!-- 4. Lose -->
+    <section id="screen-lose" class="screen">
+      <div class="end-inner">
+        <div class="end-icon">
+          <i data-lucide="hourglass"></i>
+        </div>
+        <h2>Tiempo agotado</h2>
+        <p class="end-message" id="lose-message">
+          Encontraste 0 de 6 pares. El color siempre tiene una segunda oportunidad.
+        </p>
+        <button type="button" class="btn" id="btn-play-again-lose">
+          <i data-lucide="rotate-ccw"></i>
+          Intentarlo de nuevo
+        </button>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="burst-layer" aria-hidden="true"></div>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    const COLORS_STANDARD = [
+      { hex: '#C0392B', name: 'Rojo ladrillo' },
+      { hex: '#922B21', name: 'Rojo vino' },
+      { hex: '#CA6F1E', name: 'Naranja teja' },
+      { hex: '#D4AC0D', name: 'Ocre cálido' },
+      { hex: '#1E8449', name: 'Verde oliva' },
+      { hex: '#1A5276', name: 'Verde azulado' },
+      { hex: '#5B4A6F', name: 'Berenjena' },
+      { hex: '#7E5109', name: 'Bronce oscuro' },
+      { hex: '#5499C7', name: 'Azul bruma' }
+    ];
+
+    /* Paleta Tol/Okabe: distinguible con protanopia, deuteranopia y tritanopia */
+    const COLORS_ACCESSIBLE = [
+      { hex: '#0072B2', name: 'Azul' },
+      { hex: '#E69F00', name: 'Naranja' },
+      { hex: '#009E73', name: 'Verde' },
+      { hex: '#D55E00', name: 'Rojo' },
+      { hex: '#56B4E9', name: 'Celeste' },
+      { hex: '#CC79A7', name: 'Rosa' },
+      { hex: '#F0E442', name: 'Amarillo' },
+      { hex: '#332288', name: 'Índigo' },
+      { hex: '#44AA99', name: 'Turquesa' }
+    ];
+
+    const LEVELS = {
+      1: { pairs: 6, label: 'Nivel 1', cardsLabel: '12 tarjetas' },
+      2: { pairs: 8, label: 'Nivel 2', cardsLabel: '16 tarjetas' },
+      3: { pairs: 9, label: 'Nivel 3', cardsLabel: '18 tarjetas' }
+    };
+
+    const GAME_SECONDS = 90;
+    const CRITICAL_THRESHOLD = 15;
+    const PREVIEW_MS = 2800;
+
+    let gameMode = 'easy';
+    let gameLevel = 1;
+    let colorblindMode = false;
+    let isPreviewing = false;
+    let previewToken = 0;
+    let timerInterval = null;
+    let secondsLeft = GAME_SECONDS;
+    let pairsFound = 0;
+    let firstCard = null;
+    let lockBoard = false;
+    let cards = [];
+
+    const screens = {
+      welcome: document.getElementById('screen-welcome'),
+      level: document.getElementById('screen-level'),
+      game: document.getElementById('screen-game'),
+      win: document.getElementById('screen-win'),
+      lose: document.getElementById('screen-lose')
+    };
+
+    const levelModeTitle = document.getElementById('level-mode-title');
+    const levelModeDesc = document.getElementById('level-mode-desc');
+
+    const boardEl = document.getElementById('board');
+    const timerDisplay = document.getElementById('timer-display');
+    const timerWrap = document.getElementById('timer-wrap');
+    const pairsDisplay = document.getElementById('pairs-display');
+    const modeLabel = document.getElementById('mode-label');
+    const winTimeDetail = document.getElementById('win-time-detail');
+    const loseMessage = document.getElementById('lose-message');
+    const winMessage = document.getElementById('win-message');
+    const toggleColorblind = document.getElementById('toggle-colorblind');
+    const burstLayer = document.getElementById('burst-layer');
+    const gamePanel = document.getElementById('game-panel');
+    const previewHint = document.getElementById('preview-hint');
+
+    function getPairCount() {
+      return LEVELS[gameLevel].pairs;
+    }
+
+    function getActivePalette() {
+      return colorblindMode ? COLORS_ACCESSIBLE : COLORS_STANDARD;
+    }
+
+    function applyBoardLayout() {
+      boardEl.classList.remove('layout-level-1', 'layout-level-2', 'layout-level-3');
+      gamePanel.classList.remove('layout-level-1', 'layout-level-2', 'layout-level-3');
+      boardEl.classList.add(`layout-level-${gameLevel}`);
+      gamePanel.classList.add(`layout-level-${gameLevel}`);
+    }
+
+    function refreshIcons() {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+
+    function showScreen(name) {
+      Object.values(screens).forEach((el) => el.classList.remove('active'));
+      screens[name].classList.add('active');
+      refreshIcons();
+    }
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function fisherYates(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function buildDeck() {
+      const deck = [];
+      const palette = getActivePalette().slice(0, getPairCount());
+      palette.forEach((color, index) => {
+        deck.push({ colorIndex: index, hex: color.hex, name: color.name });
+        deck.push({ colorIndex: index, hex: color.hex, name: color.name });
+      });
+      return fisherYates(deck);
+    }
+
+    function delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function runPreview() {
+      isPreviewing = true;
+      lockBoard = true;
+      previewHint.textContent = 'Memoriza los colores…';
+      previewHint.classList.add('visible');
+      updateModeLabel(true);
+
+      cards.forEach((card) => setCardFlipped(card, true));
+
+      await delay(PREVIEW_MS);
+
+      cards.forEach((card) => {
+        if (!card.classList.contains('matched')) {
+          setCardFlipped(card, false);
+        }
+      });
+
+      previewHint.classList.remove('visible');
+      previewHint.textContent = '';
+      isPreviewing = false;
+      lockBoard = false;
+      updateModeLabel(false);
+      startTimer();
+    }
+
+    function hexToRgba(hex, alpha) {
+      const h = hex.replace('#', '');
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function spawnColorBurst(hex, cardA, cardB) {
+      requestAnimationFrame(() => {
+        [cardA, cardB].forEach((card) => {
+          const rect = card.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const base = Math.max(rect.width, rect.height);
+
+          const core = document.createElement('span');
+          core.className = 'burst-hue burst-hue-core';
+          core.style.left = `${cx}px`;
+          core.style.top = `${cy}px`;
+          core.style.width = `${base * 1.5}px`;
+          core.style.height = `${base * 1.5}px`;
+          core.style.background = `radial-gradient(circle at center,
+            ${hexToRgba(hex, 0.92)} 0%,
+            ${hexToRgba(hex, 0.6)} 30%,
+            ${hexToRgba(hex, 0.22)} 55%,
+            transparent 72%)`;
+          burstLayer.appendChild(core);
+          core.addEventListener('animationend', () => core.remove(), { once: true });
+
+          const wash = document.createElement('span');
+          wash.className = 'burst-hue burst-hue-wash';
+          wash.style.left = `${cx}px`;
+          wash.style.top = `${cy}px`;
+          wash.style.width = `${base * 2.6}px`;
+          wash.style.height = `${base * 2.6}px`;
+          wash.style.background = `radial-gradient(circle at center,
+            ${hexToRgba(hex, 0.5)} 0%,
+            ${hexToRgba(hex, 0.28)} 38%,
+            ${hexToRgba(hex, 0.1)} 58%,
+            transparent 75%)`;
+          burstLayer.appendChild(wash);
+          wash.addEventListener('animationend', () => wash.remove(), { once: true });
+        });
+      });
+    }
+
+    function getCardInner(card) {
+      return card.querySelector('.card-inner');
+    }
+
+    function createCardElement(data, index) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.animationDelay = `${index * 50}ms`;
+      card.dataset.colorIndex = String(data.colorIndex);
+      card.dataset.hex = data.hex;
+
+      const inner = document.createElement('div');
+      inner.className = 'card-inner';
+
+      const back = document.createElement('div');
+      back.className = 'card-back';
+
+      const front = document.createElement('div');
+      front.className = 'card-front';
+      front.style.background = data.hex;
+
+      if (gameMode === 'easy') {
+        const hexLabel = document.createElement('span');
+        hexLabel.className = 'card-hex';
+        hexLabel.textContent = colorblindMode ? data.name : data.hex;
+        front.appendChild(hexLabel);
+      }
+
+      inner.appendChild(back);
+      inner.appendChild(front);
+      card.appendChild(inner);
+
+      card.addEventListener('click', () => onCardClick(card));
+      return card;
+    }
+
+    function setCardFlipped(card, flipped) {
+      const inner = getCardInner(card);
+      if (flipped) {
+        card.classList.add('is-flipped');
+        inner.classList.add('is-flipped');
+      } else {
+        card.classList.remove('is-flipped');
+        inner.classList.remove('is-flipped');
+      }
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      cards = [];
+      const deck = buildDeck();
+      deck.forEach((item, i) => {
+        const card = createCardElement(item, i);
+        boardEl.appendChild(card);
+        cards.push(card);
+      });
+    }
+
+    function updateTimerUI() {
+      timerDisplay.textContent = formatTime(secondsLeft);
+      if (secondsLeft < CRITICAL_THRESHOLD) {
+        timerWrap.classList.add('critical');
+      } else {
+        timerWrap.classList.remove('critical');
+      }
+    }
+
+    function updatePairsUI() {
+      pairsDisplay.textContent = `${pairsFound} / ${getPairCount()} pares`;
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function startTimer() {
+      stopTimer();
+      secondsLeft = GAME_SECONDS;
+      updateTimerUI();
+      timerInterval = setInterval(() => {
+        secondsLeft -= 1;
+        updateTimerUI();
+        if (secondsLeft <= 0) {
+          stopTimer();
+          endGame(false);
+        }
+      }, 1000);
+    }
+
+    function onCardClick(card) {
+      if (lockBoard || isPreviewing) return;
+      if (card.classList.contains('is-flipped') || card.classList.contains('matched')) return;
+
+      setCardFlipped(card, true);
+
+      if (!firstCard) {
+        firstCard = card;
+        return;
+      }
+
+      if (firstCard === card) return;
+
+      lockBoard = true;
+      const secondCard = card;
+      const isMatch = firstCard.dataset.colorIndex === secondCard.dataset.colorIndex;
+      const innerA = getCardInner(firstCard);
+      const innerB = getCardInner(secondCard);
+
+      if (isMatch) {
+        firstCard.classList.add('matched');
+        secondCard.classList.add('matched');
+        innerA.classList.add('pulse-match');
+        innerB.classList.add('pulse-match');
+        pairsFound += 1;
+        updatePairsUI();
+        spawnColorBurst(firstCard.dataset.hex, firstCard, secondCard);
+
+        setTimeout(() => {
+          innerA.classList.remove('pulse-match');
+          innerB.classList.remove('pulse-match');
+        }, 500);
+
+        firstCard = null;
+        lockBoard = false;
+
+        if (pairsFound >= getPairCount()) {
+          stopTimer();
+          endGame(true);
+        }
+      } else {
+        innerA.classList.add('shake');
+        innerB.classList.add('shake');
+
+        setTimeout(() => {
+          innerA.classList.remove('shake');
+          innerB.classList.remove('shake');
+          setCardFlipped(firstCard, false);
+          setCardFlipped(secondCard, false);
+          firstCard = null;
+          lockBoard = false;
+        }, 1000);
+      }
+    }
+
+    function endGame(won) {
+      lockBoard = true;
+      if (won) {
+        winMessage.textContent =
+          `Encontraste los ${getPairCount()} pares a tiempo. Tu memoria cromática es impresionante.`;
+        winTimeDetail.textContent = `Tiempo restante: ${formatTime(secondsLeft)}`;
+        showScreen('win');
+      } else {
+        loseMessage.textContent =
+          `Encontraste ${pairsFound} de ${getPairCount()} pares. El color siempre tiene una segunda oportunidad.`;
+        showScreen('lose');
+      }
+      refreshIcons();
+    }
+
+    function resetToWelcome() {
+      previewToken += 1;
+      stopTimer();
+      isPreviewing = false;
+      pairsFound = 0;
+      firstCard = null;
+      lockBoard = false;
+      secondsLeft = GAME_SECONDS;
+      boardEl.innerHTML = '';
+      cards = [];
+      burstLayer.innerHTML = '';
+      previewHint.classList.remove('visible');
+      previewHint.textContent = '';
+      timerWrap.classList.remove('critical');
+      showScreen('welcome');
+    }
+
+    function updateModeLabel(preview = false) {
+      const modeText = gameMode === 'easy' ? 'Modo Fácil' : 'Modo Difícil';
+      const levelText = LEVELS[gameLevel].label;
+      const accessText = colorblindMode ? ' · Colores accesibles' : '';
+      const previewText = preview ? ' · Vista previa' : '';
+      modeLabel.textContent = `${modeText} · ${levelText}${accessText}${previewText}`;
+    }
+
+    function showLevelSelect(mode) {
+      gameMode = mode;
+      levelModeTitle.textContent = mode === 'easy' ? 'Modo Fácil' : 'Modo Difícil';
+      levelModeDesc.textContent =
+        mode === 'easy' ? 'Con códigos hex' : 'Solo colores';
+      showScreen('level');
+    }
+
+    function startGameAtLevel(level) {
+      gameLevel = level;
+      colorblindMode = toggleColorblind.checked;
+      pairsFound = 0;
+      firstCard = null;
+      lockBoard = true;
+      isPreviewing = false;
+      stopTimer();
+      updateModeLabel();
+      updatePairsUI();
+      applyBoardLayout();
+      renderBoard();
+      showScreen('game');
+      refreshIcons();
+      const staggerMs = cards.length * 50 + 350;
+      previewToken += 1;
+      const token = previewToken;
+      setTimeout(() => {
+        if (token !== previewToken) return;
+        runPreview();
+      }, staggerMs);
+    }
+
+    document.querySelectorAll('#screen-level .btn-level').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        startGameAtLevel(parseInt(btn.dataset.level, 10));
+      });
+    });
+
+    document.querySelectorAll('[data-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        showLevelSelect(btn.dataset.mode);
+      });
+    });
+
+    document.getElementById('btn-play-again-win').addEventListener('click', resetToWelcome);
+    document.getElementById('btn-play-again-lose').addEventListener('click', resetToWelcome);
+    document.getElementById('btn-back-welcome').addEventListener('click', resetToWelcome);
+    document.getElementById('btn-back-mode').addEventListener('click', () => showScreen('welcome'));
+
+    refreshIcons();
+  </script>
+</body>
+</html>
